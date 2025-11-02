@@ -1,0 +1,70 @@
+# -------------------------
+# Global Node / Dependency folders
+# -------------------------
+node_modules/
+**/node_modules/
+
+# -------------------------
+# Build outputs
+# -------------------------
+dist/
+**/dist/
+build/
+**/build/
+tmp/
+temp/
+.angular/
+.angular/cache/
+
+# -------------------------
+# Logs
+# -------------------------
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.log
+
+# -------------------------
+# Environment & Config
+# -------------------------
+.env
+.env.local
+.env.*.local
+backend/.env
+go-fish/.env
+
+# -------------------------
+# Backend data & runtime artifacts
+# -------------------------
+backend/games.json
+backend/data/
+backend/uploads/
+backend/*.db
+backend/*.sqlite
+
+# -------------------------
+# Angular (frontend) extras
+# -------------------------
+go-fish/coverage/
+go-fish/*.tsbuildinfo
+
+# -------------------------
+# IDE & OS
+# -------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# -------------------------
+# Deployment metadata
+# -------------------------
+.render/
+.vercel/
+.netlify/
