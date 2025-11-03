@@ -17,12 +17,12 @@ function loadGames() {
 
 loadGames();
 
-export function createGame(playerId) {
+export function createGame(playerId, name = 'Anonymous') {
   const gameId = crypto.randomUUID();
   games[gameId] = {
     id: gameId,
     players: {
-      [playerId]: { hand: [], sets: [] },
+      [playerId]: { name, hand: [], sets: [] },
     },
     started: false,
     turn: null,
@@ -31,23 +31,20 @@ export function createGame(playerId) {
   return games[gameId];
 }
 
-export async function joinGame(gameId, playerId) {
+export async function joinGame(gameId, playerId, name = 'Anonymous') {
   const game = games[gameId];
   if (!game) return null;
 
-  // add if missing
   if (!game.players[playerId]) {
-    game.players[playerId] = { hand: [], sets: [] };
+    game.players[playerId] = { name, hand: [], sets: [] };
+  } else if (!game.players[playerId].name) {
+    // update name if previously missing
+    game.players[playerId].name = name;
   }
 
   if (!game.started && Object.keys(game.players).length === 2) {
     await startGame(game);
   }
-  console.log("[joinGame]", {
-    gameId,
-    playerId,
-    existingPlayers: Object.keys(game.players),
-  });
 
   saveGames();
 
@@ -108,6 +105,11 @@ export async function handleAsk(gameId, from, to, rank, io) {
   const asker = game.players[from];
   const target = game.players[to];
 
+  if (!asker || !target) return null;
+
+  const askerName = asker.name || from.slice(0, 5);
+  const targetName = target.name || to.slice(0, 5);
+
   const matching = target.hand.filter((c) => c.value === rank);
   if (matching.length) {
     target.hand = target.hand.filter((c) => c.value !== rank);
@@ -115,16 +117,16 @@ export async function handleAsk(gameId, from, to, rank, io) {
     asker.hand = sortHand(asker.hand);
     target.hand = sortHand(target.hand);
 
+    io.to(gameId).emit('gameMessage', {
+      text: `🎯 ${askerName} asked ${targetName} for ${rank}s and got ${matching.length}!`,
+    });
+
     const completed = checkForSets(gameId, asker, io);
     if (completed.length > 0) {
       io.to(gameId).emit("stateUpdate", games[gameId]); // sync everyone
     }
 
-    io.to(gameId).emit("gameMessage", {
-      text: `Player ${from.slice(0, 5)} asked for ${rank}s and got ${
-        matching.length
-      }! 🎯`,
-    });
+    
   } else {
     const draw = await fetch(
       `https://deckofcardsapi.com/api/deck/${game.deckId}/draw/?count=1`
@@ -136,17 +138,17 @@ export async function handleAsk(gameId, from, to, rank, io) {
       asker.hand = sortHand(asker.hand);
       target.hand = sortHand(target.hand);
       game.remaining = draw.remaining;
-      checkForSets(gameId, asker, io);
-      io.to(gameId).emit("gameMessage", {
-        text: `Player ${from.slice(0, 5)} asked for ${rank}s — Go fish!`,
+      io.to(gameId).emit('gameMessage', {
+        text: `🎣 ${askerName} asked ${targetName} for ${rank}s — Go fish!`,
       });
+      checkForSets(gameId, asker, io);
     }
   }
 
   const winner = checkGameOver(game);
   if (winner) {
-    io.to(gameId).emit("gameMessage", {
-      text: `🏆 Player ${winner.slice(0, 5)} wins the game!`,
+    io.to(gameId).emit('gameMessage', {
+      text: `🏆 ${game.players[winner].name || winner.slice(0, 5)} wins the game!`,
     });
     return;
   }
@@ -178,8 +180,8 @@ function checkForSets(gameId, player, io) {
 
   if (newSets.length > 0) {
     for (const rank of newSets) {
-      io.to(gameId).emit("gameMessage", {
-        text: `🎉 A player completed a set of ${rank}s!`,
+      io.to(gameId).emit('gameMessage', {
+        text: `🎉 ${player.name || 'A player'} completed a set of ${rank}s!`,
       });
     }
     saveGames();
@@ -230,3 +232,19 @@ function sortHand(hand) {
 export function getGame(gameId) {
   return games[gameId];
 }
+
+export function updatePlayerName(io, playerId, newName) {
+  console.log("trying to update name to " + newName + " for " + playerId);
+  for (const [gameId, game] of Object.entries(games)) {
+    if (game.players[playerId]) {
+      const oldName = game.players[playerId].name;
+      game.players[playerId].name = newName;
+      saveGames();
+      io.to(game.id).emit("gameMessage", `${oldName} renamed to ${newName}!`);
+      console.log("name updated");
+      return { updated: true, gameId, game, playerName: newName };
+    }
+  }
+  return { updated: false };
+}
+

@@ -1,9 +1,9 @@
 import { Component, OnInit, NgZone, ChangeDetectorRef, OnDestroy } from '@angular/core';
-import { io, Socket } from 'socket.io-client';
+
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { throwError } from 'rxjs';
 import { ActivatedRoute } from '@angular/router';
+import { SocketService } from '../services/socket';
 
 interface Card {
   code: string;
@@ -19,23 +19,24 @@ interface Card {
   templateUrl: './go-fish.component.html',
   styleUrls: ['./go-fish.component.css'],
 })
-export class GoFishComponent implements OnInit, OnDestroy {
-  socket!: Socket;
+export class GoFishComponent implements OnInit {
   gameId: string | null = null;
   playerId: string | null = null;
+  playerName: string | null = null;
   players: Record<string, { hand: Card[]; sets: any[] }> = {};
   messages: string[] = [];
   remaining = 52;
   turn = '';
   selectedRank = '';
-  showCelebration = false;
+  showCelebration = true;
   celebrationText = '';
   joined = false;
 
   constructor(
     private ngZone: NgZone,
     private cdr: ChangeDetectorRef,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private socketService: SocketService
   ) {}
 
   ngOnInit() {
@@ -45,16 +46,16 @@ export class GoFishComponent implements OnInit, OnDestroy {
       localStorage.setItem('playerId', storedId);
     }
     this.playerId = storedId;
-    this.socket = io('http://localhost:4000');
 
-    this.socket.on('connect', () => {
+    this.socketService.on<any>('connect').subscribe(() => {
       const savedGameId = localStorage.getItem('gameId');
       const playerId = localStorage.getItem('playerId');
+      this.playerName = localStorage.getItem('playerName') || this.playerId!.substring(0, 5);
 
       if (savedGameId && playerId) {
         this.gameId = savedGameId;
         console.log(`Rejoining existing game: ${this.gameId}`);
-        this.socket.emit('getState', { gameId: this.gameId, playerId: this.playerId });
+        this.socketService.emit('getState', { gameId: this.gameId, playerId: this.playerId });
         this.joined = true;
       } else {
         console.log('No saved game found.');
@@ -71,7 +72,7 @@ export class GoFishComponent implements OnInit, OnDestroy {
       });
     });
 
-    this.socket.on('gameCreated', (data) => {
+    this.socketService.on<any>('gameCreated').subscribe((data) => {
       this.ngZone.run(() => {
         if (!data) {
           console.warn('[gameCreated] No data received');
@@ -90,7 +91,7 @@ export class GoFishComponent implements OnInit, OnDestroy {
       });
     });
 
-    this.socket.on('stateUpdate', (state) => {
+    this.socketService.on<any>('stateUpdate').subscribe((state) => {
       this.ngZone.run(() => {
         if (!state || !state.players) {
           console.warn('Invalid state received:', state);
@@ -118,13 +119,13 @@ export class GoFishComponent implements OnInit, OnDestroy {
       });
     });
 
-    this.socket.on('message', (msg) => {
+    this.socketService.on<any>('message').subscribe((msg) => {
       this.ngZone.run(() => {
         alert(msg.text || 'Message from server');
       });
     });
 
-    this.socket.on('gameMessage', (msg) => {
+    this.socketService.on<any>('gameMessage').subscribe((msg) => {
       this.ngZone.run(() => {
         this.messages.push(msg.text);
         if (this.messages.length > 3) this.messages.shift(); // keep last 3 messages
@@ -132,19 +133,46 @@ export class GoFishComponent implements OnInit, OnDestroy {
       });
     });
 
-    const savedGameId = localStorage.getItem('gameId');
-    const playerId = localStorage.getItem('playerId');
-    if (savedGameId && playerId) {
-      this.socket.emit('getState', { gameId: savedGameId, playerId });
-
-      this.joined = true;
-      this.cdr.markForCheck();
-    }
+    this.rejoinIfNeeded();
   }
 
-  ngOnDestroy() {
-    this.socket?.disconnect();
+ private rejoinIfNeeded() {
+  const savedGameId = localStorage.getItem('gameId');
+  const playerId = localStorage.getItem('playerId');
+  if (!savedGameId || !playerId) return;
+
+  this.gameId = savedGameId;
+  this.playerId = playerId;
+  this.playerName = localStorage.getItem('playerName') || playerId.substring(0, 5);
+
+  console.log(`[rejoinIfNeeded] Attempting to rejoin ${this.gameId}`);
+
+  const rejoin = () => {
+    console.log('[rejoinIfNeeded] Rejoining game and requesting state...');
+    this.socketService.emit('getState', {
+      gameId: this.gameId,
+      playerId: this.playerId,
+    });
+    this.joined = true;
+    this.cdr.markForCheck();
+  };
+
+  // Wait until socket is connected
+  if (!this.socketService.connected) {
+    console.log('[rejoinIfNeeded] Waiting for socket connection...');
+    this.socketService.onOnce('connect').subscribe(() => {
+      console.log('[rejoinIfNeeded] Socket connected (once)');
+      rejoin();
+    });
+
+    // Initiate connection
+    this.socketService.connect();
+  } else {
+    console.log('[rejoinIfNeeded] Socket already connected');
+    rejoin();
   }
+}
+
 
   get hasJoined() {
     return this.joined === true;
@@ -160,15 +188,22 @@ export class GoFishComponent implements OnInit, OnDestroy {
       this.playerId = crypto.randomUUID();
       localStorage.setItem('playerId', this.playerId);
     }
-    this.socket.emit('createGame', this.playerId);
+    const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
+    this.socketService.emit('createGame', { playerId: this.playerId, name });
     console.log('Creating game...');
   }
 
   joinGame() {
     console.log('Attempting to join game on gameId: ' + this.gameId);
     if (!this.gameId) return;
+    if (!this.playerId) {
+      // Generate if somehow missing
+      this.playerId = crypto.randomUUID();
+      localStorage.setItem('playerId', this.playerId);
+    }
+    const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
     console.log('Joining game');
-    this.socket.emit('joinGame', { gameId: this.gameId, playerId: this.playerId });
+    this.socketService.emit('joinGame', { gameId: this.gameId, playerId: this.playerId, name });
     localStorage.setItem('gameId', this.gameId);
     this.joined = true;
   }
@@ -176,7 +211,7 @@ export class GoFishComponent implements OnInit, OnDestroy {
   leaveGame() {
     localStorage.removeItem('gameId');
     console.log(`Leaving game ${this.gameId}`);
-    this.socket.emit('leaveGame', { gameId: this.gameId, playerId: this.playerId });
+    this.socketService.emit('leaveGame', { gameId: this.gameId, playerId: this.playerId });
 
     this.joined = false;
     this.players = {};
@@ -220,9 +255,7 @@ export class GoFishComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log(`Asking ${opponent} for ${rank}s`);
-    this.messages.push(`You asked for ${rank}s...`);
-    this.socket.emit('ask', {
+    this.socketService.emit('ask', {
       gameId: this.gameId,
       from: this.playerId,
       to: opponent,
@@ -232,8 +265,7 @@ export class GoFishComponent implements OnInit, OnDestroy {
 
   showSetCelebration(rank: string) {
     const formatted = rank.charAt(0).toUpperCase() + rank.slice(1).toLowerCase();
-    const message = `🎉 Set complete! You collected all ${formatted}s!`;
-    this.messages.push(message);
+    const message = `🎉 Set complete!`;
 
     // Trigger visual animation
     this.showCelebration = true;
@@ -242,7 +274,8 @@ export class GoFishComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.showCelebration = false;
       this.celebrationText = '';
-    }, 3000);
+      this.cdr.markForCheck();
+    }, 2000);
   }
 
   hand(): Card[] {

@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { createGame, joinGame, leaveGame, handleAsk, getGame, sendMessage } from './gameManager.js';
+import { createGame, joinGame, leaveGame, handleAsk, getGame, sendMessage, updatePlayerName } from './gameManager.js';
 
 const app = express();
 app.use(cors());
@@ -12,19 +12,20 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 io.on('connection', (socket) => {
   console.log('🧩 Socket connected:', socket.id);
 
-  socket.on('createGame', (playerId) => {
-    const game = createGame(playerId);
+  socket.on('createGame', (data) => {
+    const { playerId, name } = typeof data === 'object' ? data : { playerId: data, name: 'Anonymous' };
+    const game = createGame(playerId, name);
     socket.join(game.id);
     socket.emit('gameCreated', { id: game.id, state: game });
   });
 
   socket.on('joinGame', async (data) => {
-    const { gameId, playerId } = data;
-    const game = await joinGame(gameId, playerId);
+    const { gameId, playerId, name } = data;
+    const game = await joinGame(gameId, playerId, name);
     if (!game) return socket.emit('error', 'Game not found');
     socket.join(gameId);
     io.to(gameId).emit('stateUpdate', game);
-    sendMessage(io , gameId, "Player joined");
+    sendMessage(io , gameId, `${name} joined`);
   });
 
   socket.on('leaveGame', async ({ gameId, playerId }) => {
@@ -53,6 +54,23 @@ io.on('connection', (socket) => {
     socket.emit('stateUpdate', game);
     console.log('[getState]', { gameId, playerId, existingPlayers: Object.keys(game.players) });
 
+  });
+
+  socket.on('updateName', ({ playerId, name }) => {
+    const result = updatePlayerName(io, playerId, name);
+
+    if (result.updated) {
+      const { gameId, game, playerName } = result;
+
+      io.to(gameId).emit('gameMessage', {
+        text: `✏️ ${playerName} updated their name.`,
+      });
+
+      io.to(gameId).emit('stateUpdate', game);
+      console.log(`Updated player ${playerId} name → ${playerName}`);
+    } else {
+      console.warn(`updateName: playerId ${playerId} not found in any game.`);
+    }
   });
 
 });

@@ -1,13 +1,28 @@
-import { Component } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { GoFishComponent } from './go-fish/go-fish.component';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { SocketService } from './services/socket';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [FormsModule, GoFishComponent],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.html',
   styleUrls: ['./app.css'],
 })
-export class App {
+export class App implements OnInit {
+  playerName: string | null = null;
+
+  constructor(private cdr: ChangeDetectorRef, private socketService: SocketService) {}
+
+  ngOnInit() {
+    this.socketService.connect();
+    this.playerName = localStorage.getItem('playerName');
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'playerName') {
+        this.playerName = event.newValue;
+        this.cdr.markForCheck();
+      }
+    });
+  }
 }

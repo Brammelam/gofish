@@ -1,0 +1,64 @@
+<div
+  class="flex flex-col items-center justify-center text-center w-full h-full 
+         
+         px-6 py-12 sm:py-16"
+>
+  <!-- Title -->
+  <h1 class="text-4xl sm:text-5xl font-bold text-blue-600 dark:text-blue-300 mb-3">
+    🎣 Go Fish Online
+  </h1>
+
+  <!-- Subtitle -->
+  <p class="text-gray-600 dark:text-gray-300 max-w-md sm:max-w-lg mb-10 text-base sm:text-lg leading-relaxed">
+    A sleek, online 2-player version of <strong>Go Fish</strong>.  
+    <br />
+    Built with the
+    <a
+      href="https://deckofcardsapi.com/"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="text-blue-500 hover:text-blue-700 underline"
+    >
+      Deck of Cards API
+    </a>.
+  </p>
+
+  <!-- Buttons -->
+  <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mb-10">
+    <button
+      (click)="goToGame()"
+      class="w-full sm:w-48 bg-blue-500 hover:bg-blue-600 
+             text-white font-medium py-3 rounded-lg transition"
+    >
+      🎮 Play
+    </button>
+
+    <button
+      (click)="goToPlayer()"
+      class="w-full sm:w-48 bg-green-500 hover:bg-green-600 
+             text-white font-medium py-3 rounded-lg transition"
+    >
+      🧑‍💼 Menu
+    </button>
+  </div>
+
+  <!-- Active Game Resume -->
+  <div *ngIf="activeGameId" class="mb-8">
+    <p class="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
+      You have an active game:
+    </p>
+    <button
+      (click)="goToGame()"
+      class="mt-2 text-blue-500 hover:text-blue-700 font-medium"
+    >
+      Resume game →
+    </button>
+  </div>
+
+  <!-- Logged-in user -->
+  <div
+    class="text-gray-400 text-xs sm:text-sm pt-4 border-t border-gray-200 dark:border-slate-700 w-full max-w-xs"
+  >
+    Logged in as: <strong>{{ playerName || 'Guest' }}</strong>
+  </div>
+</div>
