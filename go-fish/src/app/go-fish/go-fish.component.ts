@@ -28,7 +28,7 @@ export class GoFishComponent implements OnInit {
   remaining = 52;
   turn = '';
   selectedRank = '';
-  showCelebration = true;
+  showCelebration = false;
   celebrationText = '';
   joined = false;
 

@@ -33,6 +33,7 @@ export class PlayerComponent implements OnInit {
         playerId: localStorage.getItem('playerId'),
         name: this.name,
       });
+      alert('Name updated!');
     }
   }
 
