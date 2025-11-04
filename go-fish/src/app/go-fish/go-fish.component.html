@@ -1,63 +1,63 @@
-<div class="flex text-gray-300 items-center justify-center min-h-[calc(100vh-8rem)] px-4 sm:px-6 py-8">
+<div
+  class="flex text-gray-300 items-center justify-center min-h-[calc(100vh-8rem)] px-4 sm:px-6 py-8"
+>
   <div
-    class="w-full max-w-md bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm 
-           rounded-2xl border border-blue-200/50 dark:border-slate-700/50 
-           p-6 sm:p-8 flex flex-col text-center shadow-sm"
+    class="w-full max-w-md bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-blue-200/50 dark:border-slate-700/50 p-6 sm:p-8 flex flex-col text-center shadow-sm"
   >
     <!-- 💡 Pre-join UI -->
     <div *ngIf="!hasJoined" class="space-y-4 flex-grow flex flex-col justify-center">
       <button
         (click)="createGame()"
-        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white 
-               font-medium rounded-lg transition focus:ring-2 focus:ring-blue-300"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition focus:ring-2 focus:ring-blue-300"
       >
-        🎲 Create Game
+        🎲 Play with friend
       </button>
-
+      <button
+        (click)="createGameWithAI()"
+        class="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition focus:ring-2 focus:ring-blue-300"
+      >
+        🤖 Play with AI
+      </button>
       <div class="flex flex-col sm:flex-row gap-2">
         <input
           [(ngModel)]="gameId"
           placeholder="Enter game ID"
-          class="flex-1 border border-gray-300 dark:border-slate-600 rounded-lg 
-                 px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-white 
-                 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          class="flex-1 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
         <button
           (click)="joinGame()"
-          class="w-full sm:w-auto py-2 px-4 bg-blue-500 hover:bg-blue-600 
-                 text-white font-medium rounded-lg transition focus:ring-2 focus:ring-blue-300"
+          class="w-full sm:w-auto py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition focus:ring-2 focus:ring-blue-300"
         >
           Join
         </button>
       </div>
     </div>
     <!-- Celebration -->
-        <div
-          *ngIf="showCelebration"
-          class="fixed -top-20 left-1/2 -translate-x-1/2 bg-yellow-400 text-black 
-                 text-lg font-bold px-6 py-3 rounded-xl shadow-md animate-bounce z-50"
-        >
-          {{ celebrationText }}
-        </div>
+    <div
+      *ngIf="showCelebration"
+      class="fixed -top-20 left-1/2 -translate-x-1/2 bg-yellow-400 text-black text-lg font-bold px-6 py-3 rounded-xl shadow-md animate-bounce z-50"
+    >
+      {{ celebrationText }}
+    </div>
 
     <!-- 💡 In-game UI -->
     <div *ngIf="hasJoined" class="flex flex-col flex-grow justify-between">
       <div class="space-y-5">
-        
-
         <!-- Game Info -->
-        <div *ngIf="!gameStarted()" class="bg-blue-50/60 dark:bg-slate-700/60 p-4 rounded-lg text-sm sm:text-base">
+        <div
+          *ngIf="!gameStarted()"
+          class="bg-blue-50/60 dark:bg-slate-700/60 p-4 rounded-lg text-sm sm:text-base"
+        >
           <button
             (click)="copyLink()"
-            class="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white 
-                   font-medium px-4 py-2 rounded-lg transition focus:ring-2 focus:ring-blue-300"
+            class="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg transition focus:ring-2 focus:ring-blue-300"
           >
             Copy game link
           </button>
         </div>
 
         <!-- Turn Indicator -->
-        <div
+        <div *ngIf="!winner"
           class="text-lg font-semibold"
           [ngClass]="{
             'text-yellow-600': !gameStarted(),
@@ -66,53 +66,106 @@
           }"
         >
           <p *ngIf="!gameStarted()">⏳ Waiting for opponent...</p>
-          <p *ngIf="gameStarted() && isMyTurn()">🎯 Your turn!</p>
-          <p *ngIf="gameStarted() && !isMyTurn()">🕒 Opponent’s turn</p>
-        </div>
 
-        <!-- Messages -->
-        <div *ngIf="messages.length" class="mt-2">
-          <div
-            *ngFor="let m of messages"
-            class="text-gray-700 dark:text-gray-200 text-sm italic mb-1"
-          >
-            {{ m }}
+          <!-- Human vs AI -->
+          <p *ngIf="gameStarted() && hasAI">
+            <ng-container *ngIf="isMyTurn(); else aiTurn"> 🎯 Your turn vs AI! </ng-container>
+            <ng-template #aiTurn>🤖 Computer is thinking...</ng-template>
+          </p>
+
+          <!-- Human vs Human -->
+          <p *ngIf="gameStarted() && !hasAI">
+            <ng-container *ngIf="isMyTurn(); else otherTurn"> 🎯 Your turn! </ng-container>
+            <ng-template #otherTurn>🕒 Opponent’s turn</ng-template>
+          </p>
+
+          <!-- Messages -->
+          <div *ngIf="messages.length" class="mt-2">
+            <div
+              *ngFor="let m of messages"
+              class="text-gray-700 dark:text-gray-200 text-sm italic mb-1"
+            >
+              {{ m }}
+            </div>
+          </div>
+
+          <!-- Card Hand -->
+          <div class="flex flex-wrap justify-center gap-y-3 mt-4" [class.opacity-90]="!isMyTurn()">
+            <div
+              *ngFor="let c of hand(); let i = index"
+              class="-ml-5 sm:-ml-5 first:ml-0 transition-transform hover:scale-110 hover:z-10"
+            >
+              <img
+                [src]="c.image"
+                [alt]="c.code"
+                class="w-14 sm:w-16 rounded-md shadow-sm cursor-pointer select-none"
+                (click)="onCardClick(c)"
+                [title]="isMyTurn() ? 'Ask for ' + c.value : 'Wait for your turn'"
+              />
+            </div>
+          </div>
+
+          <!-- Sets Info -->
+          <div *ngIf="gameStarted()" class="text-sm sm:text-base mt-4 space-y-1">
+            <p>
+              🎴 Your sets: <strong>{{ players[playerId!]?.sets?.length ?? 0 }}</strong>
+            </p>
+            <p>
+              🧍 Opponent’s sets: <strong>{{ players[opponentId()]?.sets?.length ?? 0 }}</strong>
+            </p>
+            <p>
+              🪣 Cards remaining: <strong>{{ remaining }}</strong>
+            </p>
           </div>
         </div>
 
-        <!-- Card Hand -->
-        <div class="flex flex-wrap justify-center gap-y-3 mt-4" [class.opacity-90]="!isMyTurn()">
-          <div
-            *ngFor="let c of hand(); let i = index"
-            class="-ml-5 sm:-ml-5 first:ml-0 transition-transform hover:scale-110 hover:z-10"
-          >
-            <img
-              [src]="c.image"
-              [alt]="c.code"
-              class="w-14 sm:w-16 rounded-md shadow-sm cursor-pointer select-none"
-              (click)="onCardClick(c)"
-              [title]="isMyTurn() ? 'Ask for ' + c.value : 'Wait for your turn'"
-            />
-          </div>
-        </div>
-
-        <!-- Sets Info -->
-        <div *ngIf="gameStarted()" class="text-sm sm:text-base mt-4 space-y-1">
-          <p>🎴 Your sets: <strong>{{ players[playerId!]?.sets?.length ?? 0 }}</strong></p>
-          <p>🧍 Opponent’s sets: <strong>{{ players[opponentId()]?.sets?.length ?? 0 }}</strong></p>
-          <p>🪣 Cards remaining: <strong>{{ remaining }}</strong></p>
-        </div>
-      </div>
-
-      <!-- 🚪 Leave button anchored to bottom -->
-      <div class="pt-6 mt-6 border-t border-gray-200 dark:border-slate-700">
-        <button
-          (click)="leaveGame()"
-          class="w-full py-3 bg-red-500 hover:bg-red-600 text-white 
-                 font-medium rounded-lg transition focus:ring-2 focus:ring-red-300"
+        <div *ngIf="winner"
+          class="text-lg font-semibold"
+          [ngClass]="{
+            'text-yellow-600': !gameStarted(),
+            'text-green-600': gameStarted() && isMyTurn(),
+            'text-gray-500 dark:text-gray-400': gameStarted() && !isMyTurn()
+          }"
         >
-          🚪 Leave Game
-        </button>
+          <!-- Human vs AI -->
+          <p *ngIf="gameStarted() && hasAI">
+            🏆 {{winner.name}} wins the game!
+          </p>
+
+          <!-- Messages -->
+          <div *ngIf="messages.length" class="mt-2">
+            <div
+              *ngFor="let m of messages"
+              class="text-gray-700 dark:text-gray-200 text-sm italic mb-1"
+            >
+              {{ m }}
+            </div>
+          </div>
+
+
+          <!-- Sets Info -->
+          <div *ngIf="gameStarted()" class="text-sm sm:text-base mt-4 space-y-1">
+            <p>
+              🎴 Your sets: <strong>{{ players[playerId!]?.sets?.length ?? 0 }}</strong>
+            </p>
+            <p>
+              🧍 Opponent’s sets: <strong>{{ players[opponentId()]?.sets?.length ?? 0 }}</strong>
+            </p>
+            <p>
+              🪣 Cards remaining: <strong>{{ remaining }}</strong>
+            </p>
+          </div>
+        </div>
+
+        <!-- 🚪 Leave button anchored to bottom -->
+        <div class="pt-6 mt-6 border-t border-gray-200 dark:border-slate-700">
+          <button
+            (click)="leaveGame()"
+            class="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition focus:ring-2 focus:ring-red-300"
+          >
+            🚪 Leave Game
+          </button>
+        </div>
       </div>
     </div>
   </div>

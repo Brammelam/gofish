@@ -23,7 +23,7 @@ export class GoFishComponent implements OnInit {
   gameId: string | null = null;
   playerId: string | null = null;
   playerName: string | null = null;
-  players: Record<string, { hand: Card[]; sets: any[] }> = {};
+  players: Record<string, { hand: Card[]; sets: any[]; isAI: false }> = {};
   messages: string[] = [];
   remaining = 52;
   turn = '';
@@ -31,6 +31,7 @@ export class GoFishComponent implements OnInit {
   showCelebration = false;
   celebrationText = '';
   joined = false;
+  winner: any | null = null;
 
   constructor(
     private ngZone: NgZone,
@@ -98,9 +99,8 @@ export class GoFishComponent implements OnInit {
           return;
         }
 
-        // Keep track of previous set count
-        const prevSets = this.players[this.playerId ?? '']?.sets?.length ?? 0;
-        const newSets = state.players[this.playerId ?? '']?.sets?.length ?? 0;
+        const player = state.players[this.playerId ?? ''];
+        if (!player) return;
 
         this.players = state.players;
         this.turn = state.turn;
@@ -108,20 +108,24 @@ export class GoFishComponent implements OnInit {
         if (!this.gameId && state.id) this.gameId = state.id;
         this.joined = true;
 
-        // 🎉 Detect when player completes a new set
-        if (newSets > prevSets) {
-          const newSet = this.players[this.playerId!].sets[newSets - 1];
-          const rank = newSet?.[0]?.value ?? 'Unknown';
-          this.showSetCelebration(rank);
+        if (state.winner){
+          this.winner = state.players[state.winner];
+        }
+
+        if (this.isMyTurn() && this.winner === null) {
+          this.autoDrawIfEmpty();
         }
 
         this.cdr.markForCheck();
       });
     });
 
-    this.socketService.on<any>('message').subscribe((msg) => {
+    this.socketService.on<any>('setCompleted').subscribe(({ playerId, rank }) => {
       this.ngZone.run(() => {
-        alert(msg.text || 'Message from server');
+        if (playerId === this.playerId) {
+          this.showSetCelebration(rank);
+        }
+        this.cdr.markForCheck();
       });
     });
 
@@ -136,43 +140,42 @@ export class GoFishComponent implements OnInit {
     this.rejoinIfNeeded();
   }
 
- private rejoinIfNeeded() {
-  const savedGameId = localStorage.getItem('gameId');
-  const playerId = localStorage.getItem('playerId');
-  if (!savedGameId || !playerId) return;
+  private rejoinIfNeeded() {
+    const savedGameId = localStorage.getItem('gameId');
+    const playerId = localStorage.getItem('playerId');
+    if (!savedGameId || !playerId) return;
 
-  this.gameId = savedGameId;
-  this.playerId = playerId;
-  this.playerName = localStorage.getItem('playerName') || playerId.substring(0, 5);
+    this.gameId = savedGameId;
+    this.playerId = playerId;
+    this.playerName = localStorage.getItem('playerName') || playerId.substring(0, 5);
 
-  console.log(`[rejoinIfNeeded] Attempting to rejoin ${this.gameId}`);
+    console.log(`[rejoinIfNeeded] Attempting to rejoin ${this.gameId}`);
 
-  const rejoin = () => {
-    console.log('[rejoinIfNeeded] Rejoining game and requesting state...');
-    this.socketService.emit('getState', {
-      gameId: this.gameId,
-      playerId: this.playerId,
-    });
-    this.joined = true;
-    this.cdr.markForCheck();
-  };
+    const rejoin = () => {
+      console.log('[rejoinIfNeeded] Rejoining game and requesting state...');
+      this.socketService.emit('getState', {
+        gameId: this.gameId,
+        playerId: this.playerId,
+      });
+      this.joined = true;
+      this.cdr.markForCheck();
+    };
 
-  // Wait until socket is connected
-  if (!this.socketService.connected) {
-    console.log('[rejoinIfNeeded] Waiting for socket connection...');
-    this.socketService.onOnce('connect').subscribe(() => {
-      console.log('[rejoinIfNeeded] Socket connected (once)');
+    // Wait until socket is connected
+    if (!this.socketService.connected) {
+      console.log('[rejoinIfNeeded] Waiting for socket connection...');
+      this.socketService.onOnce('connect').subscribe(() => {
+        console.log('[rejoinIfNeeded] Socket connected (once)');
+        rejoin();
+      });
+
+      // Initiate connection
+      this.socketService.connect();
+    } else {
+      console.log('[rejoinIfNeeded] Socket already connected');
       rejoin();
-    });
-
-    // Initiate connection
-    this.socketService.connect();
-  } else {
-    console.log('[rejoinIfNeeded] Socket already connected');
-    rejoin();
+    }
   }
-}
-
 
   get hasJoined() {
     return this.joined === true;
@@ -189,7 +192,18 @@ export class GoFishComponent implements OnInit {
       localStorage.setItem('playerId', this.playerId);
     }
     const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
-    this.socketService.emit('createGame', { playerId: this.playerId, name });
+    this.socketService.emit('createGame', { playerId: this.playerId, name: name, vsAI: false });
+    console.log('Creating game...');
+  }
+
+  createGameWithAI() {
+    if (!this.playerId) {
+      // Generate if somehow missing
+      this.playerId = crypto.randomUUID();
+      localStorage.setItem('playerId', this.playerId);
+    }
+    const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
+    this.socketService.emit('createGame', { playerId: this.playerId, name: name, vsAI: true });
     console.log('Creating game...');
   }
 
@@ -263,6 +277,23 @@ export class GoFishComponent implements OnInit {
     });
   }
 
+  autoDrawIfEmpty() {
+    if (!this.isMyTurn()) return;
+    const myHand = this.hand();
+    if (myHand.length > 0) return;
+
+    const opponent = this.opponentId();
+    if (!opponent) return;
+
+    this.socketService.emit('ask', {
+      gameId: this.gameId,
+      from: this.playerId,
+      to: opponent,
+      rank: 'AUTO_DRAW',
+    });
+  }
+
+
   showSetCelebration(rank: string) {
     const formatted = rank.charAt(0).toUpperCase() + rank.slice(1).toLowerCase();
     const message = `🎉 Set complete!`;
@@ -287,7 +318,22 @@ export class GoFishComponent implements OnInit {
   }
 
   isMyTurn() {
+    if (!this.turn || !this.playerId) return false;
+
+    const currentPlayer = this.players[this.turn];
+    if (!currentPlayer) return false;
+
+    // If playing vs AI: only allow turns when it's *not* AI's turn
+    if (Object.values(this.players).some((p) => p.isAI)) {
+      return !currentPlayer.isAI;
+    }
+
+    // Otherwise (human vs human)
     return this.turn === this.playerId;
+  }
+
+  get hasAI(): boolean {
+    return Object.values(this.players).some((p) => (p as any).isAI);
   }
 
   get gameLink() {
