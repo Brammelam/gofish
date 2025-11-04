@@ -75,4 +75,4 @@ io.on('connection', (socket) => {
 
 });
 
-httpServer.listen(4000, () => console.log('🎴 Go Fish server running on port 4000'));
+httpServer.listen(process.env.PORT ?? 4000, () => console.log('🎴 Go Fish server running on port 4000'));
