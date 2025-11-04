@@ -325,13 +325,12 @@ async function handleAITurn(gameId, io) {
   const game = games[gameId];
   if (!game) return;
 
-  
   const aiId = "AI_PLAYER";
   const ai = game.players[aiId];
   const humanId = Object.keys(game.players).find((id) => id !== aiId);
-  
   if (!ai || !humanId) return;
-  
+  if (game.winner) return;
+
   game.turn = aiId;
   io.to(gameId).emit("stateUpdate", game);
 
@@ -354,27 +353,34 @@ async function handleAITurn(gameId, io) {
         saveGames();
       }
 
-      // Go Fish rules: if you have no cards, draw one, and you get another turn
+      // If AI *still* has no cards (deck empty), skip turn
+      if (ai.hand.length === 0) {
+        io.to(gameId).emit("gameMessage", {
+          text: `🤖 Computer has no cards and the deck is empty — skipping turn.`,
+        });
+        game.turn = humanId;
+        io.to(gameId).emit("stateUpdate", game);
+        saveGames();
+        return;
+      }
+
+      await new Promise((r) => setTimeout(r, 1500));
+    } else {
+      io.to(gameId).emit("gameMessage", {
+        text: `🤖 Computer has no cards and the deck is empty — skipping turn.`,
+      });
+      game.turn = humanId;
       io.to(gameId).emit("stateUpdate", game);
       saveGames();
-      await new Promise((r) => setTimeout(r, 1500));
-      await handleAITurn(gameId, io);
       return;
     }
-
-    io.to(gameId).emit("gameMessage", {
-      text: `🤖 Computer has no cards and the deck is empty — skipping turn.`,
-    });
-    game.turn = humanId;
-    io.to(gameId).emit("stateUpdate", game);
-    saveGames();
-    return;
   }
 
-  const randomCard = ai.hand[Math.floor(Math.random() * ai.hand.length)];
-  const rank = randomCard.value;
+  if (ai.hand.length > 0) {
+    const randomCard = ai.hand[Math.floor(Math.random() * ai.hand.length)];
+    const rank = randomCard.value;
 
-  await new Promise((r) => setTimeout(r, 1500));
-
-  await handleAsk(gameId, "AI_PLAYER", humanId, rank, io);
+    await new Promise((r) => setTimeout(r, 1500));
+    await handleAsk(gameId, aiId, humanId, rank, io);
+  }
 }
