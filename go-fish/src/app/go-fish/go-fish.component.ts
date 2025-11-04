@@ -291,7 +291,7 @@ export class GoFishComponent implements OnInit {
   }
 
   get gameLink() {
-    return `${window.location.origin}?gameId=${this.gameId}`;
+    return `${window.location.origin}/go?gameId=${this.gameId}`;
   }
 
   copyLink() {
