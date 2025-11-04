@@ -1,6 +1,7 @@
 import { Injectable, NgZone } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class SocketService {
@@ -17,7 +18,7 @@ export class SocketService {
     if (this.socket && this.connected) return;
 
     if (!this.socket) {
-      this.socket = io('http://localhost:4000', {
+      this.socket = io(environment.backendUrl, {
         transports: ['websocket'],
         autoConnect: false,
       });
