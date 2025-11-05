@@ -1,68 +1,105 @@
-<div class="flex items-center justify-center min-h-[calc(100vh-8rem)] px-4 sm:px-6 py-8">
+<div
+  class="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] px-4 sm:px-6 py-8 space-y-8"
+>
+  <!-- Player Card -->
   <div
-    class="w-full max-w-md bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm 
-           rounded-2xl border border-green-200/50 dark:border-slate-700/50 
-           p-6 sm:p-8 flex flex-col text-center shadow-sm"
+    class="w-full max-w-md bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl border border-green-200/50 dark:border-slate-700/50 p-6 sm:p-8 text-center shadow-sm transition-transform hover:scale-[1.01]"
   >
     <!-- Title -->
-    <h2 class="text-3xl font-bold mb-6 text-green-600 dark:text-green-300">
-      Player Profile
-    </h2>
+    <h2 class="text-3xl font-bold mb-6 text-green-600 dark:text-green-300">Player Profile</h2>
 
-    <!-- Form -->
-    <div class="flex flex-col flex-grow justify-between space-y-6">
-      <div class="space-y-4">
-        <div class="text-left">
-          <label
-            for="playerName"
-            class="block text-gray-700 dark:text-gray-300 font-medium mb-1"
-          >
-            Name
-          </label>
-          <input
-            id="playerName"
-            [(ngModel)]="name"
-            placeholder="Enter your name"
-            class="w-full border border-gray-300 dark:border-slate-600 
-                   rounded-lg px-3 py-2 bg-white dark:bg-slate-700 
-                   text-gray-800 dark:text-white 
-                   focus:outline-none focus:ring-2 focus:ring-green-300"
-          />
-        </div>
+    <!-- Name Form -->
+    <div class="space-y-4 text-left">
+      <label
+        for="playerName"
+        class="block text-gray-700 dark:text-gray-300 font-medium mb-1"
+      >
+        Name
+      </label>
+      <input
+        id="playerName"
+        [(ngModel)]="name"
+        placeholder="Enter your name"
+        class="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-300"
+      />
 
-        <button
-          (click)="saveName()"
-          class="w-full bg-green-500 hover:bg-green-600 text-white 
-                 font-medium py-3 rounded-lg transition focus:ring-2 focus:ring-green-300"
-        >
-          Save
-        </button>
-
-        <!-- Active Game Info -->
-        <div *ngIf="activeGameId" class="mt-2 p-4 bg-green-50/70 dark:bg-slate-700/60 rounded-lg">
-          <p class="text-gray-700 dark:text-gray-200 mb-2 font-medium">
-            You have an active game
-          </p>
-          <button
-            (click)="resumeGame()"
-            class="w-full bg-blue-500 hover:bg-blue-600 text-white 
-                   font-medium py-2.5 rounded-lg transition focus:ring-2 focus:ring-blue-300"
-          >
-            Resume game
-          </button>
-        </div>
-      </div>
-
-      <!-- Clear Data Button (anchored bottom) -->
-      <div class="pt-6 mt-6 border-t border-gray-200 dark:border-slate-700">
-        <button
-          (click)="clearData()"
-          class="w-full bg-red-500 hover:bg-red-600 text-white 
-                 font-medium py-3 rounded-lg transition focus:ring-2 focus:ring-red-300"
-        >
-          Clear Save data
-        </button>
-      </div>
+      <button
+        (click)="saveName()"
+        class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-lg transition focus:ring-2 focus:ring-green-300"
+      >
+        💾 Save
+      </button>
     </div>
+
+    <!-- Active Game Info -->
+    <div
+      *ngIf="activeGameId"
+      class="mt-6 p-4 bg-green-50/70 dark:bg-slate-700/60 rounded-lg border border-green-100/40 dark:border-slate-600/50"
+    >
+      <p class="text-gray-700 dark:text-gray-200 mb-2 font-medium">
+        You have an active game
+      </p>
+      <button
+        (click)="resumeGame()"
+        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 rounded-lg transition focus:ring-2 focus:ring-blue-300"
+      >
+        ▶ Resume game
+      </button>
+    </div>
+
+    <!-- Clear Data Button -->
+    <div class="pt-6 mt-6 border-t border-gray-200 dark:border-slate-700">
+      <button
+        (click)="clearData()"
+        class="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 rounded-lg transition focus:ring-2 focus:ring-red-300"
+      >
+        🗑 Clear Save Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Game History -->
+  <div
+    *ngIf="playerHistory?.length"
+    class="w-full max-w-md bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl border border-blue-100/40 dark:border-slate-700/40 p-6 sm:p-8 shadow-sm"
+  >
+    <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4 text-center">
+      🕹 Previous Games
+    </h2>
+    <ul class="divide-y divide-gray-200 dark:divide-slate-700">
+      <li
+        *ngFor="let g of playerHistory"
+        class="py-3 flex justify-between items-center text-sm sm:text-base"
+      >
+        <div class="text-left">
+          <span class="font-medium text-gray-800 dark:text-gray-100 block">
+            {{ g.vsAI ? '🤖 vs AI' : '🧑 vs ' + g.opponent }}
+          </span>
+          <span
+            class="text-xs text-gray-500 dark:text-gray-400"
+            [ngClass]="{
+              'text-green-600 dark:text-green-400': g.winner === playerId,
+              'text-red-500 dark:text-red-400': g.winner && g.winner !== playerId
+            }"
+          >
+            {{
+              g.winner === playerId
+                ? '🏆 You won'
+                : g.winner
+                ? '💀 You lost'
+                : '⏳ In progress'
+            }}
+          </span>
+        </div>
+
+        <a
+          [routerLink]="['/go']"
+          [queryParams]="{ gameId: g.id }"
+          class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium text-xs sm:text-sm"
+        >
+          View →
+        </a>
+      </li>
+    </ul>
   </div>
 </div>

@@ -5,11 +5,11 @@ import cors from "cors";
 import {
   createGame,
   joinGame,
-  leaveGame,
   handleAsk,
   getGame,
   sendMessage,
   updatePlayerName,
+  getPlayerGames,
 } from "./gameManager.js";
 
 const app = express();
@@ -19,6 +19,11 @@ const io = new Server(httpServer, { cors: { origin: "*" } });
 
 io.on("connection", (socket) => {
   console.log("🧩 Socket connected:", socket.id);
+
+  socket.on("registerPlayer", ({ playerId }) => {
+    if (!playerId) return;
+    socket.join(`player:${playerId}`);
+  });
 
   socket.on("createGame", async (data) => {
     const isObject = typeof data === "object" && data !== null;
@@ -33,7 +38,7 @@ io.on("connection", (socket) => {
 
     if (vsAI) {
       const aiId = "AI_PLAYER";
-      await joinGame(game.id, aiId, "Computer");
+      await joinGame(io, game.id, aiId, "Computer");
       io.to(game.id).emit("stateUpdate", game);
     }
 
@@ -42,23 +47,16 @@ io.on("connection", (socket) => {
 
   socket.on("joinGame", async (data) => {
     const { gameId, playerId, name } = data;
-    const game = await joinGame(gameId, playerId, name);
+    const game = await joinGame(io, gameId, playerId, name);
     if (!game) return socket.emit("error", "Game not found");
     socket.join(gameId);
     io.to(gameId).emit("stateUpdate", game);
     sendMessage(io, gameId, `${name} joined`);
   });
 
-  socket.on("leaveGame", async ({ gameId, playerId }) => {
-    const result = await leaveGame(gameId, playerId);
+  socket.on("leaveGame", async ({ gameId, name }) => {
+    sendMessage(io, gameId, `${name} left`);
     socket.leave(gameId);
-
-    if (result.deleted) {
-      console.log(`Game ${gameId} fully deleted`);
-    } else if (result.removed && result.game) {
-      io.to(gameId).emit("stateUpdate", result.game);
-      sendMessage(io, gameId, "Player left");
-    }
   });
 
   socket.on("ask", async (data) => {
@@ -73,11 +71,6 @@ io.on("connection", (socket) => {
     if (!game) return socket.emit("error", "Game not found");
     socket.join(gameId);
     socket.emit("stateUpdate", game);
-    console.log("[getState]", {
-      gameId,
-      playerId,
-      existingPlayers: Object.keys(game.players),
-    });
   });
 
   socket.on("updateName", ({ playerId, name }) => {
@@ -94,6 +87,15 @@ io.on("connection", (socket) => {
       console.log(`Updated player ${playerId} name → ${playerName}`);
     } else {
       console.warn(`updateName: playerId ${playerId} not found in any game.`);
+    }
+  });
+
+  socket.on("historyRequest", ({ playerId }) => {
+    if (playerId) {
+      io.to(`player:${playerId}`).emit(
+        "historyResponse",
+        getPlayerGames(playerId)
+      );
     }
   });
 });

@@ -23,19 +23,15 @@ export class SocketService {
         autoConnect: false,
       });
 
-      console.log('[SocketService] Connected:', this.socket.id);
-
       this.socket.on('connect', () => {
         this.ngZone.run(() => {
           this.connected = true;
-          console.log('[SocketService] Connected:', this.socket?.id);
         });
       });
 
       this.socket.on('disconnect', () => {
         this.ngZone.run(() => {
           this.connected = false;
-          console.log('[SocketService] Disconnected');
         });
       });
     }
@@ -44,9 +40,16 @@ export class SocketService {
     }
   }
 
+  registerPlayer(playerId: string): void {
+    if (!this.socket || !this.connected) {
+      console.warn('[SocketService] registerPlayer() called before connection');
+      return;
+    }
+    this.socket.emit('registerPlayer', { playerId });
+  }
+
   disconnect(): void {
     if (this.socket?.connected) {
-      console.log('[SocketService] Disconnecting socket...');
       this.socket.disconnect();
       this.connected = false;
     }

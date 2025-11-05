@@ -2,8 +2,9 @@ import { Component, OnInit, NgZone, ChangeDetectorRef, OnDestroy } from '@angula
 
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { SocketService } from '../services/socket';
+import { Subject, takeUntil } from 'rxjs';
 
 interface Card {
   code: string;
@@ -19,7 +20,9 @@ interface Card {
   templateUrl: './go-fish.component.html',
   styleUrls: ['./go-fish.component.css'],
 })
-export class GoFishComponent implements OnInit {
+export class GoFishComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+
   gameId: string | null = null;
   playerId: string | null = null;
   playerName: string | null = null;
@@ -36,105 +39,112 @@ export class GoFishComponent implements OnInit {
   constructor(
     private ngZone: NgZone,
     private cdr: ChangeDetectorRef,
+    private router: Router,
     private route: ActivatedRoute,
     private socketService: SocketService
   ) {}
 
   ngOnInit() {
     let storedId = localStorage.getItem('playerId');
-    if (!storedId) {
-      storedId = crypto.randomUUID();
-      localStorage.setItem('playerId', storedId);
-    }
     this.playerId = storedId;
 
-    this.socketService.on<any>('connect').subscribe(() => {
-      const savedGameId = localStorage.getItem('gameId');
-      const playerId = localStorage.getItem('playerId');
-      this.playerName = localStorage.getItem('playerName') || this.playerId!.substring(0, 5);
+    this.socketService
+      .on<any>('connect')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const savedGameId = localStorage.getItem('gameId');
+        const playerId = localStorage.getItem('playerId');
+        this.playerName = localStorage.getItem('playerName') || this.playerId!.substring(0, 5);
 
-      if (savedGameId && playerId) {
-        this.gameId = savedGameId;
-        console.log(`Rejoining existing game: ${this.gameId}`);
-        this.socketService.emit('getState', { gameId: this.gameId, playerId: this.playerId });
-        this.joined = true;
-      } else {
-        console.log('No saved game found.');
+        if (savedGameId && playerId) {
+          this.gameId = savedGameId;
+          this.socketService.emit('getState', { gameId: this.gameId, playerId: this.playerId });
+          this.joined = true;
+        }
+      });
+
+    this.socketService
+      .on<any>('gameCreated')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((data) => {
+        this.ngZone.run(() => {
+          if (!data) {
+            console.warn('[gameCreated] No data received');
+            return;
+          }
+
+          this.gameId = data.id || data.gameId;
+          this.players = data.state.players;
+          this.turn = data.state.turn;
+
+          this.joined = true;
+
+          localStorage.setItem('gameId', this.gameId!);
+          this.cdr.markForCheck();
+        });
+      });
+
+    this.socketService
+      .on<any>('stateUpdate')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((state) => {
+        this.ngZone.run(() => {
+          if (!state || !state.players) {
+            console.warn('Invalid state received:', state);
+            return;
+          }
+
+          const player = state.players[this.playerId ?? ''];
+          if (!player) return;
+
+          this.players = state.players;
+          this.turn = state.turn;
+          this.remaining = state.remaining ?? 0;
+          if (!this.gameId && state.id) this.gameId = state.id;
+          this.joined = true;
+
+          if (state.winner) {
+            this.winner = state.players[state.winner];
+          }
+
+          if (this.isMyTurn() && this.winner === null) {
+            this.autoDrawIfEmpty();
+          }
+
+          this.cdr.markForCheck();
+        });
+      });
+
+    this.socketService
+      .on<any>('setCompleted')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(({ playerId, rank }) => {
+        this.ngZone.run(() => {
+          if (playerId === this.playerId) {
+            this.showSetCelebration(rank);
+          }
+          this.cdr.markForCheck();
+        });
+      });
+
+    this.socketService
+      .on<any>('gameMessage')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((msg) => {
+        this.ngZone.run(() => {
+          this.messages.push(msg.text);
+          if (this.messages.length > 3) this.messages.shift(); // keep last 3 messages
+          this.cdr.markForCheck();
+        });
+      });
+
+    // handle invite links separately
+    this.route.queryParams.subscribe((params) => {
+      const urlGameId = params['gameId'];
+      if (urlGameId && !this.joined) {
+        this.gameId = urlGameId;
+        this.joinGame();
       }
-
-      // handle invite links separately
-      this.route.queryParams.subscribe((params) => {
-        const urlGameId = params['gameId'];
-        if (urlGameId && !this.joined) {
-          this.gameId = urlGameId;
-          console.log(`Joining game from invite: ${this.gameId}`);
-          this.joinGame();
-        }
-      });
-    });
-
-    this.socketService.on<any>('gameCreated').subscribe((data) => {
-      this.ngZone.run(() => {
-        if (!data) {
-          console.warn('[gameCreated] No data received');
-          return;
-        }
-
-        this.gameId = data.id || data.gameId;
-        this.players = data.state.players;
-        this.turn = data.state.turn;
-
-        this.joined = true;
-
-        localStorage.setItem('gameId', this.gameId!);
-        console.log('Game created with ID: ' + this.gameId);
-        this.cdr.markForCheck();
-      });
-    });
-
-    this.socketService.on<any>('stateUpdate').subscribe((state) => {
-      this.ngZone.run(() => {
-        if (!state || !state.players) {
-          console.warn('Invalid state received:', state);
-          return;
-        }
-
-        const player = state.players[this.playerId ?? ''];
-        if (!player) return;
-
-        this.players = state.players;
-        this.turn = state.turn;
-        this.remaining = state.remaining ?? 0;
-        if (!this.gameId && state.id) this.gameId = state.id;
-        this.joined = true;
-
-        if (state.winner){
-          this.winner = state.players[state.winner];
-        }
-
-        if (this.isMyTurn() && this.winner === null) {
-          this.autoDrawIfEmpty();
-        }
-
-        this.cdr.markForCheck();
-      });
-    });
-
-    this.socketService.on<any>('setCompleted').subscribe(({ playerId, rank }) => {
-      this.ngZone.run(() => {
-        if (playerId === this.playerId) {
-          this.showSetCelebration(rank);
-        }
-        this.cdr.markForCheck();
-      });
-    });
-
-    this.socketService.on<any>('gameMessage').subscribe((msg) => {
-      this.ngZone.run(() => {
-        this.messages.push(msg.text);
-        if (this.messages.length > 3) this.messages.shift(); // keep last 3 messages
-        this.cdr.markForCheck();
-      });
     });
 
     this.rejoinIfNeeded();
@@ -149,32 +159,12 @@ export class GoFishComponent implements OnInit {
     this.playerId = playerId;
     this.playerName = localStorage.getItem('playerName') || playerId.substring(0, 5);
 
-    console.log(`[rejoinIfNeeded] Attempting to rejoin ${this.gameId}`);
-
-    const rejoin = () => {
-      console.log('[rejoinIfNeeded] Rejoining game and requesting state...');
-      this.socketService.emit('getState', {
-        gameId: this.gameId,
-        playerId: this.playerId,
-      });
-      this.joined = true;
-      this.cdr.markForCheck();
-    };
-
-    // Wait until socket is connected
-    if (!this.socketService.connected) {
-      console.log('[rejoinIfNeeded] Waiting for socket connection...');
-      this.socketService.onOnce('connect').subscribe(() => {
-        console.log('[rejoinIfNeeded] Socket connected (once)');
-        rejoin();
-      });
-
-      // Initiate connection
-      this.socketService.connect();
-    } else {
-      console.log('[rejoinIfNeeded] Socket already connected');
-      rejoin();
-    }
+    this.socketService.emit('getState', {
+      gameId: this.gameId,
+      playerId: this.playerId,
+    });
+    this.joined = true;
+    this.cdr.markForCheck();
   }
 
   get hasJoined() {
@@ -193,7 +183,6 @@ export class GoFishComponent implements OnInit {
     }
     const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
     this.socketService.emit('createGame', { playerId: this.playerId, name: name, vsAI: false });
-    console.log('Creating game...');
   }
 
   createGameWithAI() {
@@ -204,11 +193,9 @@ export class GoFishComponent implements OnInit {
     }
     const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
     this.socketService.emit('createGame', { playerId: this.playerId, name: name, vsAI: true });
-    console.log('Creating game...');
   }
 
   joinGame() {
-    console.log('Attempting to join game on gameId: ' + this.gameId);
     if (!this.gameId) return;
     if (!this.playerId) {
       // Generate if somehow missing
@@ -216,28 +203,24 @@ export class GoFishComponent implements OnInit {
       localStorage.setItem('playerId', this.playerId);
     }
     const name = localStorage.getItem('playerName') || this.playerId.substring(0, 5);
-    console.log('Joining game');
     this.socketService.emit('joinGame', { gameId: this.gameId, playerId: this.playerId, name });
     localStorage.setItem('gameId', this.gameId);
     this.joined = true;
+    this.socketService.emit('getState', {
+      gameId: this.gameId,
+      playerId: this.playerId,
+    });
   }
 
   leaveGame() {
     localStorage.removeItem('gameId');
-    console.log(`Leaving game ${this.gameId}`);
-    this.socketService.emit('leaveGame', { gameId: this.gameId, playerId: this.playerId });
-
-    this.joined = false;
-    this.players = {};
-    this.turn = '';
-    this.selectedRank = '';
-
-    this.cdr.markForCheck();
+    const name = localStorage.getItem('playerName') || this.playerId?.substring(0, 5) || 'Someone';
+    this.socketService.emit('leaveGame', { gameId: this.gameId, name: name });
+    this.router.navigate(['']);
   }
 
   onCardClick(card: Card) {
     if (!this.isMyTurn()) {
-      console.log('Not your turn!');
       return;
     }
 
@@ -293,7 +276,6 @@ export class GoFishComponent implements OnInit {
     });
   }
 
-
   showSetCelebration(rank: string) {
     const formatted = rank.charAt(0).toUpperCase() + rank.slice(1).toLowerCase();
     const message = `🎉 Set complete!`;
@@ -344,5 +326,10 @@ export class GoFishComponent implements OnInit {
     if (!this.gameLink) return;
     navigator.clipboard.writeText(this.gameLink);
     alert('Game link copied to clipboard!');
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

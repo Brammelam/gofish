@@ -45,14 +45,14 @@ export function createGame(playerId, name = "Anonymous", vsAI = false) {
   return games[gameId];
 }
 
-export async function joinGame(gameId, playerId, name = "Anonymous") {
+export async function joinGame(io, gameId, playerId, name = "Anonymous") {
   const game = games[gameId];
   if (!game) return null;
 
   if (!game.players[playerId]) {
     game.players[playerId] = { name, hand: [], sets: [] };
   }
-
+  io.to(gameId).emit("gameMessage", `${name} joined!`);
   const playerCount = Object.keys(game.players).length;
 
   // if AI present, auto-start
@@ -93,24 +93,6 @@ async function startGame(game) {
   } catch (err) {
     console.error("Failed to start game:", err);
   }
-}
-
-export async function leaveGame(gameId, playerId) {
-  const game = games[gameId];
-  if (!game) return { removed: false, deleted: false, game: null };
-
-  delete game.players[playerId];
-
-  // if no players left → delete game entirely
-  if (Object.keys(game.players).length === 0) {
-    delete games[gameId];
-    console.log(`🗑️ Game ${gameId} deleted (no players left)`);
-    return { removed: true, deleted: true, game: null };
-  }
-
-  console.log(`👋 Player ${playerId} left game ${gameId}`);
-  saveGames();
-  return { removed: true, deleted: false, game };
 }
 
 export async function handleAsk(gameId, from, to, rank, io) {
@@ -278,7 +260,7 @@ function checkGameOver(game) {
 }
 
 export function sendMessage(io, gameId, text) {
-  io.to(gameId).emit("message", { text });
+  io.to(gameId).emit("gameMessage", { text });
 }
 
 function sortHand(hand) {
@@ -382,3 +364,27 @@ async function handleAITurn(gameId, io) {
     await handleAsk(gameId, aiId, humanId, rank, io);
   }
 }
+
+export function getPlayerGames(playerId) {
+  const playerGames = [];
+
+  for (const [gameId, game] of Object.entries(games)) {
+    if (game.players && game.players[playerId]) {
+      const opponentIds = Object.keys(game.players).filter((id) => id !== playerId);
+      const opponents = opponentIds.map((id) => game.players[id]?.name || id);
+
+      playerGames.push({
+        id: game.id,
+        started: game.started,
+        winner: game.winner,
+        vsAI: !!game.vsAI,
+        remaining: game.remaining ?? 0,
+        opponent: opponents.join(', ') || '—',
+        playerName: game.players[playerId].name,
+      });
+    }
+  }
+
+  return playerGames.reverse();
+}
+

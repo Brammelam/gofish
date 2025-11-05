@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 
@@ -22,4 +22,6 @@ export class HomeComponent {
   goToPlayer() {
     this.router.navigate(['/player']);
   }
+
+
 }
