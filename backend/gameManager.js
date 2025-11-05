@@ -128,14 +128,12 @@ export async function handleAsk(gameId, from, to, rank, io) {
       `https://deckofcardsapi.com/api/deck/${game.deckId}/draw/?count=1`
     ).then((r) => r.json());
 
-    if (draw.remaining === 0 || !draw.cards?.length) {
+    if (!draw.cards?.length) {
       const winner = checkGameOver(game);
       if (winner) {
         game.winner = winner;
+        io.to(gameId).emit("stateUpdate", game);
         saveGames();
-        io.to(gameId).emit("gameMessage", {
-          text: `🏆 ${game.players[winner].name || winner.slice(0, 5)} wins the game!`,
-        });
         return;
       }
       io.to(gameId).emit("gameMessage", {

@@ -57,7 +57,8 @@
         </div>
 
         <!-- Turn Indicator -->
-        <div *ngIf="!winner"
+        <div
+          *ngIf="!winner"
           class="text-lg font-semibold"
           [ngClass]="{
             'text-yellow-600': !gameStarted(),
@@ -119,40 +120,19 @@
           </div>
         </div>
 
-        <div *ngIf="winner"
-          class="text-lg font-semibold"
-          [ngClass]="{
-            'text-yellow-600': !gameStarted(),
-            'text-green-600': gameStarted() && isMyTurn(),
-            'text-gray-500 dark:text-gray-400': gameStarted() && !isMyTurn()
-          }"
+        <div
+          *ngIf="winner"
+          class="text-lg font-semibold text-yellow-500"
         >
-          <!-- Human vs AI -->
-          <p *ngIf="gameStarted() && hasAI">
-            🏆 {{winner.name}} wins the game!
-          </p>
-
-          <!-- Messages -->
-          <div *ngIf="messages.length" class="mt-2">
-            <div
-              *ngFor="let m of messages"
-              class="text-gray-700 dark:text-gray-200 text-sm italic mb-1"
-            >
-              {{ m }}
-            </div>
-          </div>
-
+          <p>🏆 {{ winner.name }} wins the game!</p>
 
           <!-- Sets Info -->
-          <div *ngIf="gameStarted()" class="text-sm sm:text-base mt-4 space-y-1">
+          <div class="text-sm sm:text-base mt-4 space-y-1 text-white">
             <p>
               🎴 Your sets: <strong>{{ players[playerId!]?.sets?.length ?? 0 }}</strong>
             </p>
             <p>
               🧍 Opponent’s sets: <strong>{{ players[opponentId()]?.sets?.length ?? 0 }}</strong>
-            </p>
-            <p>
-              🪣 Cards remaining: <strong>{{ remaining }}</strong>
             </p>
           </div>
         </div>
