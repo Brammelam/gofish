@@ -33,6 +33,12 @@ ngOnInit() {
   this.playerId = localStorage.getItem('playerId');
   this.activeGameId = localStorage.getItem('gameId');
 
+  this.socketService.connect();
+
+  if (this.playerId) {
+    this.socketService.registerPlayer(this.playerId);
+  }
+
   this.socketService.on<any[]>('historyResponse')
   .pipe(takeUntil(this.destroy$))
   .subscribe((data) => {

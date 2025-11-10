@@ -48,6 +48,12 @@ export class GoFishComponent implements OnInit, OnDestroy {
     let storedId = localStorage.getItem('playerId');
     this.playerId = storedId;
 
+    this.socketService.connect();
+
+    if (this.playerId) {
+      this.socketService.registerPlayer(this.playerId);
+    }
+
     this.socketService
       .on<any>('connect')
       .pipe(takeUntil(this.destroy$))
@@ -55,6 +61,10 @@ export class GoFishComponent implements OnInit, OnDestroy {
         const savedGameId = localStorage.getItem('gameId');
         const playerId = localStorage.getItem('playerId');
         this.playerName = localStorage.getItem('playerName') || this.playerId!.substring(0, 5);
+
+        if (playerId) {
+          this.socketService.registerPlayer(playerId);
+        }
 
         if (savedGameId && playerId) {
           this.gameId = savedGameId;
@@ -95,13 +105,19 @@ export class GoFishComponent implements OnInit, OnDestroy {
           }
 
           const player = state.players[this.playerId ?? ''];
-          if (!player) return;
+          if (!player) {
+            console.warn('Player not found in game state:', this.playerId);
+            return;
+          }
 
           this.players = state.players;
           this.turn = state.turn;
           this.remaining = state.remaining ?? 0;
           if (!this.gameId && state.id) this.gameId = state.id;
           this.joined = true;
+
+          // Update local player name from state
+          this.playerName = player.name || this.playerId!.substring(0, 5);
 
           if (state.winner) {
             this.winner = state.players[state.winner];
@@ -159,11 +175,15 @@ export class GoFishComponent implements OnInit, OnDestroy {
     this.playerId = playerId;
     this.playerName = localStorage.getItem('playerName') || playerId.substring(0, 5);
 
-    this.socketService.emit('getState', {
-      gameId: this.gameId,
-      playerId: this.playerId,
-    });
-    this.joined = true;
+    if (this.socketService.connected) {
+      this.socketService.registerPlayer(playerId);
+      this.socketService.emit('getState', {
+        gameId: this.gameId,
+        playerId: this.playerId,
+      });
+      this.joined = true;
+    }
+    
     this.cdr.markForCheck();
   }
 
